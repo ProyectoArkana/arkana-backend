@@ -11,65 +11,102 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 
-// Limite de peticiones (100 por cada 15 min)
+// Limite de peticiones de seguridad
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: { error: 'Demasiadas peticiones desde esta IP, intente de nuevo más tarde.' }
+  message: { error: 'Demasiadas peticiones desde esta IP.' }
 });
 app.use(limiter);
 
-// 1. Auth Service (Puerto 3001) - Rutas públicas
+// ==========================================
+// 1. Auth Service (Puerto 3001) - Públicas
+// ==========================================
 app.use(
   '/api/auth',
   createProxyMiddleware({
     target: process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001',
     changeOrigin: true,
-    pathRewrite: {
-      '^/api/auth': '' // Remueve /api/auth para enviar /login directamente al puerto 3001
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    pathRewrite: { '^/api/auth': '' },
+    on: { proxyReq: fixRequestBody }
   })
 );
 
-// 2. User Service (Puerto 3002) - Rutas protegidas
+// ==========================================
+// 2. User Service (Puerto 3002) - Protegidas
+// ==========================================
 app.use(
   '/api/users',
   verifyToken,
   createProxyMiddleware({
     target: process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002',
     changeOrigin: true,
-    pathRewrite: {
-      '^/api/users': ''
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    pathRewrite: { '^/api/users': '' },
+    on: { proxyReq: fixRequestBody }
   })
 );
 
-// 3. Card Service (Puerto 3003) - Catálogo y Mazos
+// ==========================================
+// 3. Card Service (Puerto 3003) - Protegidas
+// ==========================================
 app.use(
   '/api/cards',
   verifyToken,
   createProxyMiddleware({
     target: process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003',
     changeOrigin: true,
-    pathRewrite: {
-      '^/api/cards': ''
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    pathRewrite: { '^/api/cards': '' },
+    on: { proxyReq: fixRequestBody }
   })
 );
 
+// ==========================================
+// 4. Matchmaking Service (Puerto 3004)
+// ==========================================
+app.use(
+  '/api/matchmaking',
+  verifyToken,
+  createProxyMiddleware({
+    target: process.env.MATCHMAKING_SERVICE_URL || 'http://127.0.0.1:3004',
+    changeOrigin: true,
+    pathRewrite: { '^/api/matchmaking': '' },
+    on: { proxyReq: fixRequestBody }
+  })
+);
+
+// ==========================================
+// 5. Match Service (Puerto 3005) - WebSockets
+// ==========================================
+// Proxy para peticiones HTTP normales a la partida
+app.use(
+  '/api/match',
+  verifyToken,
+  createProxyMiddleware({
+    target: process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3005',
+    changeOrigin: true,
+    pathRewrite: { '^/api/match': '' },
+    on: { proxyReq: fixRequestBody }
+  })
+);
+
+// Proxy ESPECIAL para Socket.io (Ruta por defecto que usa la librería del cliente)
+app.use(
+  '/socket.io',
+  createProxyMiddleware({
+    target: process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3005',
+    ws: true, // <-- ESTO ES CLAVE: Permite la conexión WebSocket
+    changeOrigin: true
+  })
+);
+
+// Health check global
 app.get('/health', (req, res) => {
-  res.json({ service: 'api-gateway', status: 'up' });
+  res.json({ service: 'api-gateway', status: 'up', all_routes_configured: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`[api-gateway] escuchando peticiones en el puerto ${PORT}`);
+// Para soportar WebSockets en el Gateway, debemos escuchar el evento "upgrade"
+const server = app.listen(PORT, () => {
+  console.log(`[api-gateway] Enrutador principal activo en el puerto ${PORT}`);
 });
+
+server.on('upgrade', app); // Pasa la mejora de protocolo al middleware de Proxy
