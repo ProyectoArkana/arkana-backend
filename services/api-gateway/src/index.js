@@ -37,12 +37,23 @@ app.use(
 // ==========================================
 app.use(
   '/api/users',
-  verifyToken,
+  verifyToken, // Aquí inyectas los headers en req.headers
   createProxyMiddleware({
     target: process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002',
     changeOrigin: true,
     pathRewrite: { '^/api/users': '' },
-    on: { proxyReq: fixRequestBody }
+    on: {
+      proxyReq: (proxyReq, req) => {
+        // FORZAMOS la inyección de los headers hacia el microservicio final
+        if (req.headers['x-user-id']) {
+          proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
+        }
+        if (req.headers['x-user-email']) {
+          proxyReq.setHeader('x-user-email', req.headers['x-user-email']);
+        }
+        fixRequestBody(proxyReq, req);
+      }
+    }
   })
 );
 

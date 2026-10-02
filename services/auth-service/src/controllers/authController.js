@@ -1,99 +1,65 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'arkana_secret_key_2026';
-
-// REGISTRO DE USUARIO
 exports.register = async (req, res) => {
-  const { email, username, password } = req.body;
-
-  if (!email || !username || !password) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
-  }
-
+  const { username, email, password } = req.body;
+  
   try {
-    // 1. Verificar si el usuario o email ya existe
-    const userCheck = await pool.query(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [email, username]
-    );
-
-    if (userCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'El email o username ya se encuentra registrado' });
+    const userExist = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userExist.rows.length > 0) {
+      return res.status(400).json({ error: 'El correo ya está registrado' });
     }
 
-    // 2. Hashear la contraseña
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Insertar usuario en la BD
-    const newUser = await pool.query(
-      'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, email, username, created_at',
-      [email, username, passwordHash]
+    const newUserQuery = `
+      INSERT INTO users (username, email, password) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, username, email;
+    `;
+    const newUserResult = await pool.query(newUserQuery, [username, email, hashedPassword]);
+    const user = newUserResult.rows[0];
+
+    // Crear su perfil gemelo automáticamente
+    await pool.query(
+      `INSERT INTO profiles (user_id) VALUES ($1)`,
+      [user.id]
     );
 
-    const user = newUser.rows[0];
-
-    // 4. Generar Token JWT
-    const token = jwt.sign(
-      { userId: user.id, username: user.username },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
-
-    res.status(201).json({
-      message: 'Usuario registrado exitosamente',
-      user,
-      token
+    res.status(201).json({ 
+      message: 'Usuario registrado exitosamente', 
+      user: { id: user.id, username: user.username, email: user.email } 
     });
+
   } catch (error) {
     console.error('Error en registro:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor al registrar' });
   }
 };
 
-// LOGIN DE USUARIO
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña requeridos' });
-  }
-
   try {
-    // 1. Buscar usuario por email
-    const userQuery = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userQuery.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Credenciales inválidas' });
     }
 
-    const user = userQuery.rows[0];
-
-    // 2. Comparar contraseña hasheada
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+    const user = userResult.rows[0];
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Credenciales inválidas' });
     }
 
-    // 3. Generar Token JWT
-    const token = jwt.sign(
-      { userId: user.id, username: user.username },
-      JWT_SECRET,
-      { expiresIn: '1d' }
-    );
-
-    res.json({
-      message: 'Inicio de sesión exitoso',
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username
-      },
-      token
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || 'secreto_super_seguro', {
+      expiresIn: '7d',
     });
+
+    res.json({ message: 'Login exitoso', token, user: { id: user.id, username: user.username, email: user.email } });
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error del servidor' });
   }
 };

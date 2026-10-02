@@ -7,9 +7,13 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "concurrently \"npm run dev --workspace=services/auth-service\" \"npm run dev --workspace=services/user-service\" \"npm run dev --workspace=services/card-service\" \"npm run dev --workspace=services/matchmaking-service\" \"npm run dev --workspace=services/match-service\" \"npm run dev --workspace=services/api-gateway\""
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
 }
