@@ -7,6 +7,24 @@
     "packages/*"
   ],
   "scripts": {
+<<<<<<< HEAD
+    "dev:gateway": "npm run dev --workspace=@arkana/api-gateway",
+    "dev:auth": "npm run dev --workspace=@arkana/auth-service",
+    "dev:users": "npm run dev --workspace=@arkana/user-service",
+    "dev:cards": "npm run dev --workspace=@arkana/cards-service",
+    "dev:matches": "npm run dev --workspace=@arkana/match-service",
+    "start:gateway": "npm run start --workspace=@arkana/api-gateway",
+    "start:auth": "npm run start --workspace=@arkana/auth-service",
+    "start:users": "npm run start --workspace=@arkana/user-service",
+    "start:cards": "npm run start --workspace=@arkana/cards-service",
+    "start:matches": "npm run start --workspace=@arkana/match-service",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
+=======
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "concurrently \"npm run dev --workspace=services/auth-service\" \"npm run dev --workspace=services/user-service\" \"npm run dev --workspace=services/card-service\" \"npm run dev --workspace=services/matchmaking-service\" \"npm run dev --workspace=services/match-service\" \"npm run dev --workspace=services/api-gateway\""
   },
@@ -17,3 +35,4 @@
     "concurrently": "^10.0.5"
   }
 }
+>>>>>>> origin/develop

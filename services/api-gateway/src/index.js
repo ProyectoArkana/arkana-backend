@@ -4,12 +4,11 @@ const rateLimit = require('express-rate-limit');
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 require('dotenv').config();
 
-const { verifyToken } = require('./middleware/auth');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+app.use(express.json());
 
 // Limite de peticiones de seguridad
 const limiter = rateLimit({
@@ -19,6 +18,35 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+<<<<<<< HEAD
+const proxyOptions = (target) => ({
+  target,
+  changeOrigin: true,
+  on: {
+    proxyReq: fixRequestBody
+  }
+});
+
+// 1. Auth Service (Puerto 3001)
+app.use(
+  '/api/auth',
+  createProxyMiddleware({
+    ...proxyOptions(process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001'),
+    pathRewrite: { '^/api/auth': '' }
+  })
+);
+
+// 2. User Service (Puerto 3002)
+app.use(
+  '/api/users',
+  createProxyMiddleware({
+    ...proxyOptions(process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002'),
+    pathRewrite: { '^/api/users': '' }
+  })
+);
+
+// 3. Cards Service (Puerto 3003)
+=======
 // ==========================================
 // 1. Auth Service (Puerto 3001) - Públicas
 // ==========================================
@@ -60,14 +88,28 @@ app.use(
 // ==========================================
 // 3. Card Service (Puerto 3003) - Protegidas
 // ==========================================
+>>>>>>> origin/develop
 app.use(
   '/api/cards',
-  verifyToken,
   createProxyMiddleware({
+<<<<<<< HEAD
+    ...proxyOptions(process.env.CARDS_SERVICE_URL || process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003'),
+    pathRewrite: { '^/api/cards': '' }
+  })
+);
+
+// 4. Match Service (Puerto 3004)
+app.use(
+  '/api/matches',
+  createProxyMiddleware({
+    ...proxyOptions(process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3004'),
+    pathRewrite: { '^/api/matches': '' }
+=======
     target: process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003',
     changeOrigin: true,
     pathRewrite: { '^/api/cards': '' },
     on: { proxyReq: fixRequestBody }
+>>>>>>> origin/develop
   })
 );
 
@@ -115,9 +157,15 @@ app.get('/health', (req, res) => {
   res.json({ service: 'api-gateway', status: 'up', all_routes_configured: true });
 });
 
+<<<<<<< HEAD
+app.listen(PORT, () => {
+  console.log(`[api-gateway] escuchando peticiones en el puerto ${PORT}`);
+});
+=======
 // Para soportar WebSockets en el Gateway, debemos escuchar el evento "upgrade"
 const server = app.listen(PORT, () => {
   console.log(`[api-gateway] Enrutador principal activo en el puerto ${PORT}`);
 });
 
 server.on('upgrade', app); // Pasa la mejora de protocolo al middleware de Proxy
+>>>>>>> origin/develop
