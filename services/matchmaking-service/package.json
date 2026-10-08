@@ -1,0 +1,12 @@
+{
+  "name": "@arkana/matchmaking-service",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "redis": "^6.3.0"
+  }
+}

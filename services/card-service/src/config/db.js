@@ -8,8 +8,4 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'arkana_db',
 });
 
-<<<<<<< HEAD
 module.exports = pool;
-=======
-module.exports = pool;
->>>>>>> origin/develop

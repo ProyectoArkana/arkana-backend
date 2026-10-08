@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+=======
+>>>>>>> origin/develop
 const pool = require('../config/db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
+<<<<<<< HEAD
 const JWT_SECRET = process.env.JWT_SECRET || 'arkana_secret_key_2026';
 const ACCESS_TOKEN_EXPIRES = process.env.ACCESS_TOKEN_EXPIRES || '1d';
 const REFRESH_TOKEN_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
@@ -39,14 +45,13 @@ const ensureProfile = async (userId) => {
 };
 
 // REGISTRO DE USUARIO
+=======
+>>>>>>> origin/develop
 exports.register = async (req, res) => {
-  const { email, username, password } = req.body;
-
-  if (!email || !username || !password) {
-    return res.status(400).json({ error: 'Todos los campos son obligatorios' });
-  }
-
+  const { username, email, password } = req.body;
+  
   try {
+<<<<<<< HEAD
     const userCheck = await pool.query(
       'SELECT id FROM users WHERE email = $1 OR username = $2',
       [email, username]
@@ -54,11 +59,17 @@ exports.register = async (req, res) => {
 
     if (userCheck.rows.length > 0) {
       return res.status(400).json({ error: 'El email o username ya se encuentra registrado' });
+=======
+    const userExist = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userExist.rows.length > 0) {
+      return res.status(400).json({ error: 'El correo ya está registrado' });
+>>>>>>> origin/develop
     }
 
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
+<<<<<<< HEAD
     const newUser = await pool.query(
       'INSERT INTO users (email, username, password_hash) VALUES ($1, $2, $3) RETURNING id, email, username, created_at',
       [email, username, passwordHash]
@@ -75,22 +86,37 @@ exports.register = async (req, res) => {
       user,
       token,
       refresh_token: refreshToken
+=======
+    const newUserQuery = `
+      INSERT INTO users (username, email, password) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, username, email;
+    `;
+    const newUserResult = await pool.query(newUserQuery, [username, email, hashedPassword]);
+    const user = newUserResult.rows[0];
+
+    // Crear su perfil gemelo automáticamente
+    await pool.query(
+      `INSERT INTO profiles (user_id) VALUES ($1)`,
+      [user.id]
+    );
+
+    res.status(201).json({ 
+      message: 'Usuario registrado exitosamente', 
+      user: { id: user.id, username: user.username, email: user.email } 
+>>>>>>> origin/develop
     });
+
   } catch (error) {
     console.error('Error en registro:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor al registrar' });
   }
 };
 
-// LOGIN DE USUARIO
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email y contraseña requeridos' });
-  }
-
   try {
+<<<<<<< HEAD
     const userQuery = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userQuery.rows.length === 0) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -117,10 +143,27 @@ exports.login = async (req, res) => {
       },
       token,
       refresh_token: refreshToken
+=======
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Credenciales inválidas' });
+    }
+
+    const user = userResult.rows[0];
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Credenciales inválidas' });
+    }
+
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || 'secreto_super_seguro', {
+      expiresIn: '7d',
+>>>>>>> origin/develop
     });
+
+    res.json({ message: 'Login exitoso', token, user: { id: user.id, username: user.username, email: user.email } });
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error del servidor' });
   }
 };
 
