@@ -4,12 +4,11 @@ const rateLimit = require('express-rate-limit');
 const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
 require('dotenv').config();
 
-const { verifyToken } = require('./middleware/auth');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+app.use(express.json());
 
 // Limite de peticiones (100 por cada 15 min)
 const limiter = rateLimit({
@@ -19,50 +18,47 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 1. Auth Service (Puerto 3001) - Rutas públicas
+const proxyOptions = (target) => ({
+  target,
+  changeOrigin: true,
+  on: {
+    proxyReq: fixRequestBody
+  }
+});
+
+// 1. Auth Service (Puerto 3001)
 app.use(
   '/api/auth',
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001',
-    changeOrigin: true,
-    pathRewrite: {
-      '^/api/auth': '' // Remueve /api/auth para enviar /login directamente al puerto 3001
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    ...proxyOptions(process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001'),
+    pathRewrite: { '^/api/auth': '' }
   })
 );
 
-// 2. User Service (Puerto 3002) - Rutas protegidas
+// 2. User Service (Puerto 3002)
 app.use(
   '/api/users',
-  verifyToken,
   createProxyMiddleware({
-    target: process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002',
-    changeOrigin: true,
-    pathRewrite: {
-      '^/api/users': ''
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    ...proxyOptions(process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002'),
+    pathRewrite: { '^/api/users': '' }
   })
 );
 
-// 3. Card Service (Puerto 3003) - Catálogo y Mazos
+// 3. Cards Service (Puerto 3003)
 app.use(
   '/api/cards',
-  verifyToken,
   createProxyMiddleware({
-    target: process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003',
-    changeOrigin: true,
-    pathRewrite: {
-      '^/api/cards': ''
-    },
-    on: {
-      proxyReq: fixRequestBody
-    }
+    ...proxyOptions(process.env.CARDS_SERVICE_URL || process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003'),
+    pathRewrite: { '^/api/cards': '' }
+  })
+);
+
+// 4. Match Service (Puerto 3004)
+app.use(
+  '/api/matches',
+  createProxyMiddleware({
+    ...proxyOptions(process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3004'),
+    pathRewrite: { '^/api/matches': '' }
   })
 );
 
