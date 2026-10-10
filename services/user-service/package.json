@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"
-<<<<<<< HEAD
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -15,7 +14,3 @@
     "pg": "^8.23.1"
   }
 }
-=======
-  }
-}
->>>>>>> origin/develop
