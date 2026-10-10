@@ -1,0 +1,15 @@
+# Dependencias de Node
+node_modules/
+package-lock.json
+
+# Archivos de entorno y credenciales
+.env
+*.pem
+
+# Logs y temporales
+*.log
+npm-debug.log*
+
+# Archivos del sistema operativo y VS Code
+.DS_Store
+.vscode/
