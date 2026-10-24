@@ -3,22 +3,26 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "services/*",
-    "packages/*"
+    "packages/*",
+    "services/*"
   ],
   "scripts": {
+    "dev": "concurrently -n gateway,auth,users,cards,queue,match -c cyan,green,yellow,magenta,blue,red \"npm:dev:gateway\" \"npm:dev:auth\" \"npm:dev:users\" \"npm:dev:cards\" \"npm:dev:queue\" \"npm:dev:match\"",
     "dev:gateway": "npm run dev --workspace=@arkana/api-gateway",
     "dev:auth": "npm run dev --workspace=@arkana/auth-service",
     "dev:users": "npm run dev --workspace=@arkana/user-service",
-    "dev:cards": "npm run dev --workspace=@arkana/cards-service",
-    "dev:matches": "npm run dev --workspace=@arkana/match-service",
+    "dev:cards": "npm run dev --workspace=@arkana/card-service",
+    "dev:queue": "npm run dev --workspace=@arkana/matchmaking-service",
+    "dev:match": "npm run dev --workspace=@arkana/match-service",
+    "start": "concurrently -n gateway,auth,users,cards,queue,match \"npm:start:gateway\" \"npm:start:auth\" \"npm:start:users\" \"npm:start:cards\" \"npm:start:queue\" \"npm:start:match\"",
     "start:gateway": "npm run start --workspace=@arkana/api-gateway",
     "start:auth": "npm run start --workspace=@arkana/auth-service",
     "start:users": "npm run start --workspace=@arkana/user-service",
-    "start:cards": "npm run start --workspace=@arkana/cards-service",
-    "start:matches": "npm run start --workspace=@arkana/match-service",
-    "dev": "concurrently \"npm run dev:auth\" \"npm run dev:users\" \"npm run dev:cards\" \"npm run dev:matches\" \"npm run dev:gateway\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:cards": "npm run start --workspace=@arkana/card-service",
+    "start:queue": "npm run start --workspace=@arkana/matchmaking-service",
+    "start:match": "npm run start --workspace=@arkana/match-service",
+    "tag:register": "node scripts/register-tag.js",
+    "test": "node --test \"services/match-service/test/*.test.js\""
   },
   "keywords": [],
   "author": "",

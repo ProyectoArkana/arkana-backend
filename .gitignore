@@ -8,6 +8,7 @@ node_modules/
 # Logs y temporales
 *.log
 npm-debug.log*
+coverage/
 
 # Archivos del sistema operativo y VS Code
 .DS_Store

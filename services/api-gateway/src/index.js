@@ -1,94 +1,63 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { createProxyMiddleware, fixRequestBody } = require('http-proxy-middleware');
-require('dotenv').config();
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const { loadEnv } = require('@arkana/shared');
+loadEnv();
 
 const { verifyToken } = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.GATEWAY_PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+const URLS = {
+  auth: process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001',
+  users: process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002',
+  cards: process.env.CARD_SERVICE_URL || 'http://127.0.0.1:3003',
+  queue: process.env.MATCHMAKING_SERVICE_URL || 'http://127.0.0.1:3004',
+  battle: process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3005',
+};
 
-// Limite de peticiones de seguridad
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Demasiadas peticiones desde esta IP.' }
-});
-app.use(limiter);
+app.disable('x-powered-by');
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'] }));
 
-const proxyOptions = (target, { injectUserHeaders = false } = {}) => ({
-  target,
-  changeOrigin: true,
-  on: {
-    proxyReq: (proxyReq, req) => {
-      if (injectUserHeaders) {
-        if (req.headers['x-user-id']) {
-          proxyReq.setHeader('x-user-id', req.headers['x-user-id']);
-        }
-        if (req.headers['x-user-email']) {
-          proxyReq.setHeader('x-user-email', req.headers['x-user-email']);
-        }
-      }
-      fixRequestBody(proxyReq, req);
-    }
-  }
+// Seguridad: la identidad SOLO la pone este gateway a partir del JWT.
+// Cualquier x-user-id que traiga el cliente se descarta antes de llegar a los servicios.
+app.use((req, res, next) => {
+  delete req.headers['x-user-id'];
+  delete req.headers['x-username'];
+  delete req.headers['x-internal-key'];
+  next();
 });
 
-// 1. Auth Service (Puerto 3001) - Públicas
-app.use(
-  '/api/auth',
-  createProxyMiddleware({
-    ...proxyOptions(process.env.AUTH_SERVICE_URL || 'http://127.0.0.1:3001'),
-    pathRewrite: { '^/api/auth': '' }
-  })
-);
+// Nota: no se usa express.json() aquí; el gateway reenvía el cuerpo tal cual (streaming).
+const general = rateLimit({ windowMs: 15 * 60 * 1000, limit: 600, message: { error: 'Demasiadas peticiones desde esta IP.' } });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 40, message: { error: 'Demasiados intentos. Espera unos minutos.' } });
+app.use('/api', general);
 
-// 2. User Service (Puerto 3002) - Protegidas
-app.use(
-  '/api/users',
-  verifyToken,
-  createProxyMiddleware({
-    ...proxyOptions(process.env.USER_SERVICE_URL || 'http://127.0.0.1:3002', {
-      injectUserHeaders: true
-    }),
-    pathRewrite: { '^/api/users': '' }
-  })
-);
+const http = (target) => ({ target, changeOrigin: true });
 
-// 3. Cards Service (Puerto 3003)
-app.use(
-  '/api/cards',
-  createProxyMiddleware({
-    ...proxyOptions(
-      process.env.CARDS_SERVICE_URL ||
-        process.env.CARD_SERVICE_URL ||
-        'http://127.0.0.1:3003'
-    ),
-    pathRewrite: { '^/api/cards': '' }
-  })
-);
+// REST ---------------------------------------------------------------------------------------
+app.use('/api/auth', authLimiter, createProxyMiddleware({ ...http(URLS.auth), pathRewrite: { '^/api/auth': '' } }));
+app.use('/api/users', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/users': '' } }));
+app.use('/api/cards', verifyToken, createProxyMiddleware({ ...http(URLS.cards), pathRewrite: { '^/api/cards': '' } }));
 
-// 4. Match Service (Puerto 3004)
-app.use(
-  '/api/matches',
-  verifyToken,
-  createProxyMiddleware({
-    ...proxyOptions(process.env.MATCH_SERVICE_URL || 'http://127.0.0.1:3004', {
-      injectUserHeaders: true
-    }),
-    pathRewrite: { '^/api/matches': '' }
-  })
-);
+// WebSockets (Socket.IO): cada servicio valida el JWT en el handshake ------------------------
+//   /ws/queue  -> matchmaking-service (cola)      /ws/battle -> match-service (batalla)
+const wsProxy = (path, target) => createProxyMiddleware({ ...http(target), ws: true, pathFilter: path });
+const queueProxy = wsProxy('/ws/queue', URLS.queue);
+const battleProxy = wsProxy('/ws/battle', URLS.battle);
+app.use(queueProxy);
+app.use(battleProxy);
 
-// Health check global
-app.get('/health', (req, res) => {
-  res.json({ service: 'api-gateway', status: 'up', all_routes_configured: true });
-});
+app.get('/health', (req, res) => res.json({ service: 'api-gateway', status: 'up' }));
 
-app.listen(PORT, () => {
-  console.log(`[api-gateway] escuchando peticiones en el puerto ${PORT}`);
+// Escuchar en 0.0.0.0 para aceptar tráfico de la red local / túnel ADB
+const server = app.listen(PORT, '0.0.0.0', () => console.log(`[api-gateway] escuchando en el puerto ${PORT}`));
+
+// Los upgrades a WebSocket no pasan por Express: se enrutan a mano por path
+server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/ws/queue')) return queueProxy.upgrade(req, socket, head);
+  if (req.url.startsWith('/ws/battle')) return battleProxy.upgrade(req, socket, head);
+  socket.destroy();
 });

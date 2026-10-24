@@ -1,4 +1,5 @@
-
+# Solo PostgreSQL: la cola de matchmaking y los equipos de batalla viven en memoria.
+# Si cambias init-db.sql, recrea el volumen:  docker compose down -v && docker compose up -d
 services:
   postgres:
     image: postgres:15-alpine
@@ -8,17 +9,10 @@ services:
       POSTGRES_PASSWORD: secretpassword
       POSTGRES_DB: arkana_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: arkana_redis
-    ports:
-      - "6379:6379"
     restart: unless-stopped
 
 volumes:

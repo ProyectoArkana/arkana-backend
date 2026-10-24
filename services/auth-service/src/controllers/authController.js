@@ -42,6 +42,11 @@ const ensureProfile = async (userId) => {
 exports.register = async (req, res) => {
   const { username, email, password } = req.body;
 
+  // Validar que los campos requeridos existan
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email y password son obligatorios' });
+  }
+
   try {
     const userCheck = await pool.query(
       'SELECT id FROM users WHERE email = $1 OR username = $2',
@@ -78,8 +83,15 @@ exports.register = async (req, res) => {
   }
 };
 
+// LOGIN DE USUARIO
 exports.login = async (req, res) => {
   const { email, password } = req.body;
+
+  // Validar entradas antes de consultar o comparar
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
+  }
+
   try {
     const userQuery = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userQuery.rows.length === 0) {
@@ -88,7 +100,15 @@ exports.login = async (req, res) => {
 
     const user = userQuery.rows[0];
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
+    // Verificar que el hash de la base de datos exista
+    const dbHash = user.password_hash || user.password;
+    if (!dbHash) {
+      console.error(`❌ Hash no encontrado para el usuario ID: ${user.id}`);
+      return res.status(500).json({ error: 'Error de integridad en credenciales de usuario' });
+    }
+
+    // Comparación segura con bcrypt
+    const isMatch = await bcrypt.compare(String(password), String(dbHash));
     if (!isMatch) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
