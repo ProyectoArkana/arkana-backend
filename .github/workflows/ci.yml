@@ -1,0 +1,72 @@
+name: CI Arkana Backend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build:
+    name: Build (instalar y verificar)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Verificar sintaxis de los servicios
+        run: git ls-files 'services/*.js' | xargs -r -n1 node --check
+
+  test:
+    name: Pruebas (node:test)
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Ejecutar pruebas
+        run: npm test
+
+  resultado:
+    name: Resultado del pipeline
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: always()
+    steps:
+      - name: Publicar resultado
+        run: |
+          B="${{ needs.build.result }}"
+          T="${{ needs.test.result }}"
+          {
+            echo "## Resultado - arkana-backend"
+            echo "| Etapa | Resultado |"
+            echo "|---|---|"
+            echo "| Build | $B |"
+            echo "| Pruebas | $T |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$B" != "success" ]; then
+            echo "**PIPELINE FALLIDO: build falló, pruebas NO ejecutadas.**" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          elif [ "$T" = "success" ]; then
+            echo "**PIPELINE EXITOSO.**" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**PIPELINE FALLIDO: pruebas fallaron.**" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
