@@ -1,0 +1,114 @@
+name: CI Arkana Backend
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  DB_HOST: localhost
+  DB_PORT: 5432
+  DB_USER: arkana_admin
+  DB_PASSWORD: ci_only_password
+  DB_NAME: arkana_db
+  JWT_SECRET: ci_only_jwt_secret
+
+jobs:
+  estatico:
+    name: Analisis estatico
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Auditoria de dependencias (informativa)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  unitarias:
+    name: Pruebas unitarias
+    needs: estatico
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: mkdir -p reports
+      - run: npm run test:ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-unitarias
+          path: reports/junit.xml
+          if-no-files-found: ignore
+
+  integracion:
+    name: Pruebas de integracion
+    needs: unitarias
+    if: github.event_name != 'push' || github.ref_name == 'main' || github.ref_name == 'develop'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ${{ env.DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.DB_NAME }}
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U arkana_admin -d arkana_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Cargar el esquema
+        run: psql -h localhost -U $DB_USER -d $DB_NAME -v ON_ERROR_STOP=1 -f init-db.sql
+        env:
+          PGPASSWORD: ${{ env.DB_PASSWORD }}
+      - run: npm run test:integration
+
+  resumen:
+    name: Resumen
+    needs: [estatico, unitarias, integracion]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar resumen y decidir
+        run: |
+          {
+            echo "## Resultado del pipeline"
+            echo "| Etapa | Resultado |"
+            echo "|---|---|"
+            echo "| Analisis estatico | ${{ needs.estatico.result }} |"
+            echo "| Pruebas unitarias | ${{ needs.unitarias.result }} |"
+            echo "| Pruebas de integracion | ${{ needs.integracion.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.estatico.result }}" != "success" ] || \
+             [ "${{ needs.unitarias.result }}" != "success" ] || \
+             { [ "${{ needs.integracion.result }}" != "success" ] && \
+               [ "${{ needs.integracion.result }}" != "skipped" ]; }; then
+            echo "Pipeline rechazado"; exit 1
+          fi

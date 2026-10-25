@@ -13,3 +13,5 @@ coverage/
 # Archivos del sistema operativo y VS Code
 .DS_Store
 .vscode/
+reports/
+coverage/

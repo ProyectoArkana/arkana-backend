@@ -22,12 +22,19 @@
     "start:queue": "npm run start --workspace=@arkana/matchmaking-service",
     "start:match": "npm run start --workspace=@arkana/match-service",
     "tag:register": "node scripts/register-tag.js",
-    "test": "node --test \"services/match-service/test/*.test.js\""
+    "lint": "eslint .",
+    "test": "node --test \"services/*/test/*.test.js\"",
+    "test:ci": "node --test --test-reporter=spec --test-reporter-destination=stdout \"services/*/test/*.test.js\"",
+    "test:integration": "node --test \"services/*/test/integration/*.test.js\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
+    "pg": "^8.23.1"
   }
 }
