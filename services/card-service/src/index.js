@@ -4,6 +4,7 @@ const { loadEnv, requireUser } = require('@arkana/shared');
 loadEnv();
 
 const cards = require('./cardController');
+const decks = require('./deckController');
 
 const app = express();
 const PORT = process.env.CARD_PORT || 3003;
@@ -17,6 +18,13 @@ app.get('/health', (req, res) => res.json({ service: 'card-service', status: 'up
 app.get('/', cards.listCatalog);
 app.get('/effectiveness', cards.listEffectiveness);
 app.get('/gallery', requireUser, cards.getMyGallery);
+app.get('/collection', requireUser, cards.getCollection);
+
+// Mazo activo (ARK-020): llega por el gateway como /api/decks/*
+app.get('/decks/active', requireUser, decks.getActiveDeck);
+app.put('/decks/active', requireUser, decks.saveActiveDeck);
+app.delete('/decks/active', requireUser, decks.clearActiveDeck);
+app.post('/decks/validate', requireUser, decks.validateDeckRequest);
 app.post('/scan', requireUser, cards.scanCard);
 app.get('/:id', cards.getCardById);
 

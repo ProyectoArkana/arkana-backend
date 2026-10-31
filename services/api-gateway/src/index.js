@@ -41,6 +41,14 @@ const http = (target) => ({ target, changeOrigin: true });
 app.use('/api/auth', authLimiter, createProxyMiddleware({ ...http(URLS.auth), pathRewrite: { '^/api/auth': '' } }));
 app.use('/api/users', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/users': '' } }));
 app.use('/api/cards', verifyToken, createProxyMiddleware({ ...http(URLS.cards), pathRewrite: { '^/api/cards': '' } }));
+// Mazo activo (ARK-020): lo atiende card-service
+app.use('/api/decks', verifyToken, createProxyMiddleware({
+  target: URLS.cards,
+  changeOrigin: true,
+  pathRewrite: (path) => `/decks${path}`,
+}));
+// Administración de usuarios y roles (user-service valida en la BD que quien llama sea ADMIN)
+app.use('/api/admin', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/admin': '/admin' } }));
 
 // WebSockets (Socket.IO): cada servicio valida el JWT en el handshake ------------------------
 //   /ws/queue  -> matchmaking-service (cola)      /ws/battle -> match-service (batalla)

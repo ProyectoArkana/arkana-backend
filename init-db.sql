@@ -7,12 +7,20 @@
 --  * JWT stateless  -> no hay tablas de sesión ni refresh_tokens.
 --  * Las cartas NO tienen dueño -> nfc_tags solo valida que el chip existe.
 --  * El equipo de 5 cartas de una batalla vive en memoria -> no se guarda.
+--  * ARK-020: el mazo activo (5 cartas) del usuario SÍ se guarda en user_decks.
 --  * El historial guarda solo resultados finales.
 -- ============================================================
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 DO $$ BEGIN
   CREATE TYPE element_type AS ENUM ('FUEGO', 'AGUA', 'AIRE', 'TIERRA', 'PLANTA');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ARK-009: rareza de las cartas (valores por confirmar con el PO)
+DO $$ BEGIN
+  CREATE TYPE rarity_type AS ENUM ('COMUN', 'RARA', 'EPICA', 'LEGENDARIA');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
@@ -27,6 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT         NOT NULL,
   wins          INT          NOT NULL DEFAULT 0 CHECK (wins >= 0),
   losses        INT          NOT NULL DEFAULT 0 CHECK (losses >= 0),
+  role          VARCHAR(20)  NOT NULL DEFAULT 'PLAYER' CHECK (role IN ('PLAYER', 'ADMIN')),
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (lower(username));
@@ -38,6 +47,7 @@ CREATE TABLE IF NOT EXISTS cards (
   id               SERIAL PRIMARY KEY,
   name             VARCHAR(50)  NOT NULL UNIQUE,
   element          element_type NOT NULL,
+  rarity           rarity_type  NOT NULL DEFAULT 'COMUN',
   hp               INT NOT NULL CHECK (hp > 0),
   mana             INT NOT NULL CHECK (mana >= 0),
   attack           INT NOT NULL CHECK (attack >= 0),
@@ -93,6 +103,22 @@ CREATE TABLE IF NOT EXISTS match_history (
 );
 CREATE INDEX IF NOT EXISTS idx_match_history_p1 ON match_history (player1_id, played_at DESC);
 CREATE INDEX IF NOT EXISTS idx_match_history_p2 ON match_history (player2_id, played_at DESC);
+
+-- ------------------------------------------------------------
+-- 7. Mazo activo (ARK-020): 5 cartas por usuario, sin repetir
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_decks (
+  user_id    UUID        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_deck_cards (
+  user_id  UUID     NOT NULL REFERENCES user_decks(user_id) ON DELETE CASCADE,
+  position SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 5),
+  card_id  INT      NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, position),
+  UNIQUE (user_id, card_id)
+);
 
 -- ============================================================
 -- SEMILLAS

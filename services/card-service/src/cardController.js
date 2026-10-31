@@ -1,14 +1,27 @@
 const { getPool, normalizeNfcId, serverError } = require('@arkana/shared');
+const { buildCardFilters } = require('./cardFilters');
 
 const pool = getPool();
 
-const CARD_COLUMNS = `c.id, c.name, c.element, c.hp, c.mana, c.attack, c.defense, c.speed,
+const CARD_COLUMNS = `c.id, c.name, c.element, c.rarity, c.hp, c.mana, c.attack, c.defense, c.speed,
                       c.skill_name, c.skill_mana_cost, c.skill_power, c.image_url`;
 
-// Catálogo completo (el "diccionario" central de cartas)
+// Catálogo completo (el "diccionario" central de cartas).
+// Filtros opcionales (ver cardFilters.js): name, element, rarity, min_attack, max_attack,
+// min_defense, max_defense. Con algún filtro activo: orden por nombre y máximo 50 cartas.
 exports.listCatalog = async (req, res) => {
+  const { conditions, params, error } = buildCardFilters(req.query);
+  if (error) return res.status(400).json({ error });
+
   try {
-    const { rows } = await pool.query(`SELECT ${CARD_COLUMNS} FROM cards c ORDER BY c.id`);
+    const { rows } = conditions.length
+      ? await pool.query(
+          `SELECT ${CARD_COLUMNS} FROM cards c
+           WHERE ${conditions.join(' AND ')}
+           ORDER BY c.name LIMIT 50`,
+          params,
+        )
+      : await pool.query(`SELECT ${CARD_COLUMNS} FROM cards c ORDER BY c.id`);
     return res.json({ cards: rows });
   } catch (error) {
     return serverError(res, 'cards.listCatalog', error);
@@ -87,5 +100,37 @@ exports.getMyGallery = async (req, res) => {
     return res.json({ cards: rows });
   } catch (error) {
     return serverError(res, 'cards.getMyGallery', error);
+  }
+};
+
+// Colección (ARK-016): TODO el catálogo marcando cuáles cartas ya están vinculadas a la cuenta
+// (user_gallery). Acepta los mismos filtros que GET /cards y ?only=unlocked.
+// summary = progreso total de la colección (no depende de los filtros).
+exports.getCollection = async (req, res) => {
+  const { conditions, params, error } = buildCardFilters(req.query, 1);
+  if (error) return res.status(400).json({ error });
+
+  if (String(req.query.only ?? '').toLowerCase() === 'unlocked') {
+    conditions.push('g.card_id IS NOT NULL');
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${CARD_COLUMNS}, (g.card_id IS NOT NULL) AS unlocked, g.unlocked_at
+       FROM cards c
+       LEFT JOIN user_gallery g ON g.card_id = c.id AND g.user_id = $1
+       ${where}
+       ORDER BY (g.card_id IS NULL), g.unlocked_at DESC NULLS LAST, c.name`,
+      [req.userId, ...params],
+    );
+    const progress = await pool.query(
+      `SELECT (SELECT count(*) FROM cards)::int AS total,
+              (SELECT count(*) FROM user_gallery WHERE user_id = $1)::int AS unlocked`,
+      [req.userId],
+    );
+    return res.json({ cards: rows, summary: progress.rows[0] });
+  } catch (error) {
+    return serverError(res, 'cards.getCollection', error);
   }
 };

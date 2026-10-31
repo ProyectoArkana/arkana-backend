@@ -6,7 +6,7 @@ const pool = getPool();
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[A-Za-z0-9_]{3,30}$/;
 
-const publicUser = (u) => ({ id: u.id, email: u.email, username: u.username });
+const publicUser = (u) => ({ id: u.id, email: u.email, username: u.username, role: u.role });
 
 exports.register = async (req, res) => {
   const username = String(req.body?.username ?? '').trim();
@@ -33,7 +33,7 @@ exports.register = async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO users (email, username, password_hash)
        VALUES ($1, $2, $3)
-       RETURNING id, email, username`,
+       RETURNING id, email, username, role`,
       [email, username, passwordHash],
     );
 
@@ -62,7 +62,7 @@ exports.login = async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      'SELECT id, email, username, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, username, role, password_hash FROM users WHERE email = $1',
       [email],
     );
     const user = rows[0];
