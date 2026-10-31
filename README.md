@@ -114,3 +114,7 @@ Ve a GitHub y abre un Pull Request apuntando hacia la rama:
 
 develop
 
+## Guía de uso: historial de combates
+
+La guía breve del historial entregado en el Sprint 7 está en [docs/historial-combates.md](docs/historial-combates.md). Sirve al jugador final, al equipo y a soporte.
+
