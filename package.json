@@ -22,6 +22,7 @@
     "start:queue": "npm run start --workspace=@arkana/matchmaking-service",
     "start:match": "npm run start --workspace=@arkana/match-service",
     "tag:register": "node scripts/register-tag.js",
+    "role:set": "node scripts/set-role.js",
     "test": "node --test \"services/match-service/test/*.test.js\""
   },
   "keywords": [],

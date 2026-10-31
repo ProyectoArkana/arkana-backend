@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT         NOT NULL,
   wins          INT          NOT NULL DEFAULT 0 CHECK (wins >= 0),
   losses        INT          NOT NULL DEFAULT 0 CHECK (losses >= 0),
+  role          VARCHAR(20)  NOT NULL DEFAULT 'PLAYER' CHECK (role IN ('PLAYER', 'ADMIN')),
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (lower(username));

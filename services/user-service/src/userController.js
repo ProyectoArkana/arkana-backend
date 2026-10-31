@@ -6,7 +6,7 @@ const pool = getPool();
 exports.getMe = async (req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, email, wins, losses, created_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, wins, losses, created_at FROM users WHERE id = $1',
       [req.userId],
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });

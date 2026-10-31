@@ -41,6 +41,12 @@ const http = (target) => ({ target, changeOrigin: true });
 app.use('/api/auth', authLimiter, createProxyMiddleware({ ...http(URLS.auth), pathRewrite: { '^/api/auth': '' } }));
 app.use('/api/users', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/users': '' } }));
 app.use('/api/cards', verifyToken, createProxyMiddleware({ ...http(URLS.cards), pathRewrite: { '^/api/cards': '' } }));
+// Administración de usuarios y roles (user-service valida en la BD que quien llama sea ADMIN)
+app.use('/api/admin', verifyToken, createProxyMiddleware({
+  target: URLS.users,
+  changeOrigin: true,
+  pathRewrite: (path) => `/admin${path}`, // Forzamos el /admin al inicio
+}));
 
 // WebSockets (Socket.IO): cada servicio valida el JWT en el handshake ------------------------
 //   /ws/queue  -> matchmaking-service (cola)      /ws/battle -> match-service (batalla)
