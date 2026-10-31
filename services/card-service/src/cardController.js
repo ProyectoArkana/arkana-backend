@@ -1,35 +1,25 @@
 const { getPool, normalizeNfcId, serverError } = require('@arkana/shared');
+const { buildCardFilters } = require('./cardFilters');
 
 const pool = getPool();
 
-const CARD_COLUMNS = `c.id, c.name, c.element, c.hp, c.mana, c.attack, c.defense, c.speed,
+const CARD_COLUMNS = `c.id, c.name, c.element, c.rarity, c.hp, c.mana, c.attack, c.defense, c.speed,
                       c.skill_name, c.skill_mana_cost, c.skill_power, c.image_url`;
 
-// Búsqueda por nombre (ARK-008): sin distinguir mayúsculas ni acentos ("pajaro" encuentra "Pájaro").
-// Se normaliza igual del lado de JS y del de SQL para no depender de extensiones de PostgreSQL.
-const ACCENTS = 'áéíóúüÁÉÍÓÚÜ';
-const PLAIN = 'aeiouuaeiouu';
-const normalizeSearch = (value) =>
-  String(value ?? '')
-    .trim()
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[áéíóúüÁÉÍÓÚÜ]/g, (ch) => PLAIN[ACCENTS.indexOf(ch)]);
-const escapeLike = (value) => value.replace(/[\\%_]/g, '\\$&');
-const NORMALIZED_NAME = `translate(lower(c.name), '${ACCENTS}', '${PLAIN}')`;
-
 // Catálogo completo (el "diccionario" central de cartas).
-// Con ?name=texto devuelve solo las cartas cuyo nombre contiene ese texto.
+// Filtros opcionales (ver cardFilters.js): name, element, rarity, min_attack, max_attack,
+// min_defense, max_defense. Con algún filtro activo: orden por nombre y máximo 50 cartas.
 exports.listCatalog = async (req, res) => {
-  const name = normalizeSearch(req.query.name);
+  const { conditions, params, error } = buildCardFilters(req.query);
+  if (error) return res.status(400).json({ error });
 
   try {
-    const { rows } = name
+    const { rows } = conditions.length
       ? await pool.query(
           `SELECT ${CARD_COLUMNS} FROM cards c
-           WHERE ${NORMALIZED_NAME} LIKE $1
+           WHERE ${conditions.join(' AND ')}
            ORDER BY c.name LIMIT 50`,
-          [`%${escapeLike(name)}%`],
+          params,
         )
       : await pool.query(`SELECT ${CARD_COLUMNS} FROM cards c ORDER BY c.id`);
     return res.json({ cards: rows });

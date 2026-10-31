@@ -17,6 +17,13 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+-- ARK-009: rareza de las cartas (valores por confirmar con el PO)
+DO $$ BEGIN
+  CREATE TYPE rarity_type AS ENUM ('COMUN', 'RARA', 'EPICA', 'LEGENDARIA');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 -- ------------------------------------------------------------
 -- 1. Usuarios: datos de acceso + estadísticas básicas
 -- ------------------------------------------------------------
@@ -39,6 +46,7 @@ CREATE TABLE IF NOT EXISTS cards (
   id               SERIAL PRIMARY KEY,
   name             VARCHAR(50)  NOT NULL UNIQUE,
   element          element_type NOT NULL,
+  rarity           rarity_type  NOT NULL DEFAULT 'COMUN',
   hp               INT NOT NULL CHECK (hp > 0),
   mana             INT NOT NULL CHECK (mana >= 0),
   attack           INT NOT NULL CHECK (attack >= 0),

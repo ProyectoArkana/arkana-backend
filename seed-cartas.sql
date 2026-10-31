@@ -4,22 +4,25 @@
 --
 --   docker exec -i arkana_db psql -U arkana_admin -d arkana_db < seed-cartas.sql
 --
+-- Requiere la columna cards.rarity (init-db.sql o migrations/002_add_card_rarity.sql).
+-- Rarezas: COMUN | RARA | EPICA | LEGENDARIA (valores provisionales, confirmar con el PO).
+--
 -- Escala del juego: hp 95-150 | ataque 18-28 | defensa 5-15 | velocidad 25-100
 --                   maná 3-5  | costo habilidad 1-3 | poder habilidad 18-26
 -- ============================================================
 BEGIN;
 
 INSERT INTO cards
-  (name, element, hp, mana, attack, defense, speed, skill_name, skill_mana_cost, skill_power, image_url)
+  (name, element, rarity, hp, mana, attack, defense, speed, skill_name, skill_mana_cost, skill_power, image_url)
 VALUES
-  ('Pájaro de Fuego', 'FUEGO',  106, 5, 24, 10, 85, 'Aliento Ígneo',      3, 26, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/phenix.jpeg'),
-  ('Rabito',          'TIERRA', 139, 4, 24, 13, 70, 'Pisotón Sísmico',    2, 22, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/conejo.jpeg'),
-  ('Oso PoderOSO',    'AIRE',    95, 4, 28, 15, 75, 'Zarpazo Huracán',    3, 24, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/oso.jpeg'),
-  ('Ballena',         'AGUA',   117, 5, 21,  5, 30, 'Chorro Marino',      1, 18, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/dolphin.jpeg'),
-  ('Zorrito',         'PLANTA', 150, 5, 18,  9, 80, 'Raíces Enredaderas', 1, 18, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/zorrito.jpeg'),
-  ('Jeff',            'AGUA',   150, 4, 24, 10, 50, 'Embestida Glacial',  2, 22, 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/154.png')
+  ('Pájaro de Fuego', 'FUEGO', 'LEGENDARIA',  106, 5, 24, 10, 85, 'Aliento Ígneo',      3, 26, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/phenix.jpeg'),
+  ('Rabito',          'TIERRA', 'COMUN', 139, 4, 24, 13, 70, 'Pisotón Sísmico',    2, 22, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/conejo.jpeg'),
+  ('Oso PoderOSO',    'AIRE', 'EPICA',    95, 4, 28, 15, 75, 'Zarpazo Huracán',    3, 24, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/oso.jpeg'),
+  ('Ballena',         'AGUA', 'RARA',   117, 5, 21,  5, 30, 'Chorro Marino',      1, 18, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/dolphin.jpeg'),
+  ('Zorrito',         'PLANTA', 'COMUN', 150, 5, 18,  9, 80, 'Raíces Enredaderas', 1, 18, 'https://raw.githubusercontent.com/UgaldeZarzaRaul/imagenes-/main/zorrito.jpeg'),
+  ('Jeff',            'AGUA', 'RARA',   150, 4, 24, 10, 50, 'Embestida Glacial',  2, 22, 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/154.png')
 ON CONFLICT (name) DO UPDATE SET
-  element = EXCLUDED.element, hp = EXCLUDED.hp, mana = EXCLUDED.mana,
+  element = EXCLUDED.element, rarity = EXCLUDED.rarity, hp = EXCLUDED.hp, mana = EXCLUDED.mana,
   attack = EXCLUDED.attack, defense = EXCLUDED.defense, speed = EXCLUDED.speed,
   skill_name = EXCLUDED.skill_name, skill_mana_cost = EXCLUDED.skill_mana_cost,
   skill_power = EXCLUDED.skill_power, image_url = EXCLUDED.image_url;
