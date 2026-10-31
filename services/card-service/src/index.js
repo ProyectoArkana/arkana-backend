@@ -17,6 +17,7 @@ app.get('/health', (req, res) => res.json({ service: 'card-service', status: 'up
 app.get('/', cards.listCatalog);
 app.get('/effectiveness', cards.listEffectiveness);
 app.get('/gallery', requireUser, cards.getMyGallery);
+app.get('/collection', requireUser, cards.getCollection);
 app.post('/scan', requireUser, cards.scanCard);
 app.get('/:id', cards.getCardById);
 

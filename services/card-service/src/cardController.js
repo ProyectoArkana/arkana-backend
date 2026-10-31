@@ -102,3 +102,35 @@ exports.getMyGallery = async (req, res) => {
     return serverError(res, 'cards.getMyGallery', error);
   }
 };
+
+// Colección (ARK-016): TODO el catálogo marcando cuáles cartas ya están vinculadas a la cuenta
+// (user_gallery). Acepta los mismos filtros que GET /cards y ?only=unlocked.
+// summary = progreso total de la colección (no depende de los filtros).
+exports.getCollection = async (req, res) => {
+  const { conditions, params, error } = buildCardFilters(req.query, 1);
+  if (error) return res.status(400).json({ error });
+
+  if (String(req.query.only ?? '').toLowerCase() === 'unlocked') {
+    conditions.push('g.card_id IS NOT NULL');
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT ${CARD_COLUMNS}, (g.card_id IS NOT NULL) AS unlocked, g.unlocked_at
+       FROM cards c
+       LEFT JOIN user_gallery g ON g.card_id = c.id AND g.user_id = $1
+       ${where}
+       ORDER BY (g.card_id IS NULL), g.unlocked_at DESC NULLS LAST, c.name`,
+      [req.userId, ...params],
+    );
+    const progress = await pool.query(
+      `SELECT (SELECT count(*) FROM cards)::int AS total,
+              (SELECT count(*) FROM user_gallery WHERE user_id = $1)::int AS unlocked`,
+      [req.userId],
+    );
+    return res.json({ cards: rows, summary: progress.rows[0] });
+  } catch (error) {
+    return serverError(res, 'cards.getCollection', error);
+  }
+};
