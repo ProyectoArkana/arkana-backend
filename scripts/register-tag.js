@@ -6,6 +6,7 @@
 //   npm run tag:register -- 04A1B2C3D4E5F6 "Oso Continental"   -> también por nombre
 //
 // El UID es el que muestra la app al escanear (o el que lea cualquier app de NFC).
+// MICROSERVICIO BACKEND
 const { getPool, normalizeNfcId } = require('@arkana/shared');
 
 async function main() {
