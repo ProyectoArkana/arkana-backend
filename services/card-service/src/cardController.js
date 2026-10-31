@@ -5,10 +5,33 @@ const pool = getPool();
 const CARD_COLUMNS = `c.id, c.name, c.element, c.hp, c.mana, c.attack, c.defense, c.speed,
                       c.skill_name, c.skill_mana_cost, c.skill_power, c.image_url`;
 
-// Catálogo completo (el "diccionario" central de cartas)
+// Búsqueda por nombre (ARK-008): sin distinguir mayúsculas ni acentos ("pajaro" encuentra "Pájaro").
+// Se normaliza igual del lado de JS y del de SQL para no depender de extensiones de PostgreSQL.
+const ACCENTS = 'áéíóúüÁÉÍÓÚÜ';
+const PLAIN = 'aeiouuaeiouu';
+const normalizeSearch = (value) =>
+  String(value ?? '')
+    .trim()
+    .slice(0, 50)
+    .toLowerCase()
+    .replace(/[áéíóúüÁÉÍÓÚÜ]/g, (ch) => PLAIN[ACCENTS.indexOf(ch)]);
+const escapeLike = (value) => value.replace(/[\\%_]/g, '\\$&');
+const NORMALIZED_NAME = `translate(lower(c.name), '${ACCENTS}', '${PLAIN}')`;
+
+// Catálogo completo (el "diccionario" central de cartas).
+// Con ?name=texto devuelve solo las cartas cuyo nombre contiene ese texto.
 exports.listCatalog = async (req, res) => {
+  const name = normalizeSearch(req.query.name);
+
   try {
-    const { rows } = await pool.query(`SELECT ${CARD_COLUMNS} FROM cards c ORDER BY c.id`);
+    const { rows } = name
+      ? await pool.query(
+          `SELECT ${CARD_COLUMNS} FROM cards c
+           WHERE ${NORMALIZED_NAME} LIKE $1
+           ORDER BY c.name LIMIT 50`,
+          [`%${escapeLike(name)}%`],
+        )
+      : await pool.query(`SELECT ${CARD_COLUMNS} FROM cards c ORDER BY c.id`);
     return res.json({ cards: rows });
   } catch (error) {
     return serverError(res, 'cards.listCatalog', error);
