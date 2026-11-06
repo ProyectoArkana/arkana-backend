@@ -1,14 +1,21 @@
-name: CI Arkana Backend
+name: CI/CD Arkana Backend
 
 on:
   push:
     branches:
       - main
       - develop
+      - ci/actividad09-RNDaniela
+    tags:
+      - 'v*.*.*'
   pull_request:
     branches:
       - main
       - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -44,29 +51,150 @@ jobs:
       - name: Ejecutar pruebas
         run: npm test
 
+  release:
+    name: Liberación (generar y validar artefacto)
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact: ${{ steps.version.outputs.artifact }}
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Determinar versión (SemVer)
+        id: version
+        run: |
+          BASE="$(node -p "require('./package.json').version")"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::La etiqueta '$GITHUB_REF_NAME' no sigue el formato vMAJOR.MINOR.PATCH"
+              exit 1
+            fi
+            if [ "$VERSION" != "$BASE" ]; then
+              echo "::error::La etiqueta ($VERSION) no coincide con package.json ($BASE)"
+              exit 1
+            fi
+          else
+            VERSION="${BASE}-rc.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "artifact=arkana-backend-release-$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versión a liberar: $VERSION"
+
+      - name: Generar artefacto de liberación
+        run: bash scripts/prepare-release.sh "${{ steps.version.outputs.version }}"
+
+      - name: Validar artefacto (archivos, secretos, dependencias)
+        run: bash scripts/verify-artifact.sh "dist/arkana-backend-${{ steps.version.outputs.version }}.tar.gz"
+
+      - name: Publicar artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy-preprod:
+    name: Entrega a preproducción
+    runs-on: ubuntu-latest
+    needs: release
+    if: github.event_name != 'pull_request'
+    environment: preproduccion
+    steps:
+      - name: Obtener scripts
+        uses: actions/checkout@v4
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Descargar artefacto
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.release.outputs.artifact }}
+          path: entrega
+
+      - name: Validar artefacto descargado
+        env:
+          REPORT: validacion-${{ needs.release.outputs.version }}.md
+        run: bash scripts/verify-artifact.sh "entrega/arkana-backend-${{ needs.release.outputs.version }}.tar.gz"
+
+      - name: Instalar en preproducción y prueba de humo
+        env:
+          NODE_ENV: preproduction
+          JWT_SECRET: preprod-ci-no-secreto
+        run: bash scripts/deploy-preprod.sh "entrega/arkana-backend-${{ needs.release.outputs.version }}.tar.gz" "$RUNNER_TEMP/preprod"
+
+      # Entrega a un servidor real (opcional): configurar en el Environment
+      # 'preproduccion' el secreto PREPROD_SSH_KEY y las variables PREPROD_HOST / PREPROD_USER,
+      # y agregar aquí un paso con scp + ssh que ejecute scripts/deploy-preprod.sh en el servidor.
+
+      - name: Publicar evidencia de validación
+        uses: actions/upload-artifact@v4
+        with:
+          name: validacion-${{ needs.release.outputs.version }}
+          path: validacion-${{ needs.release.outputs.version }}.md
+          retention-days: 7
+
+  publicar-release:
+    name: GitHub Release (solo etiquetas vX.Y.Z)
+    runs-on: ubuntu-latest
+    needs: [release, deploy-preprod]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Descargar artefacto
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.release.outputs.artifact }}
+          path: entrega
+      - name: Crear GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" entrega/* --repo "$GITHUB_REPOSITORY" --title "arkana-backend $GITHUB_REF_NAME" --generate-notes
+
   resultado:
     name: Resultado del pipeline
     runs-on: ubuntu-latest
-    needs: [build, test]
+    needs: [build, test, release, deploy-preprod]
     if: always()
     steps:
       - name: Publicar resultado
         run: |
           B="${{ needs.build.result }}"
           T="${{ needs.test.result }}"
+          R="${{ needs.release.result }}"
+          D="${{ needs.deploy-preprod.result }}"
           {
             echo "## Resultado - arkana-backend"
             echo "| Etapa | Resultado |"
             echo "|---|---|"
             echo "| Build | $B |"
             echo "| Pruebas | $T |"
+            echo "| Liberación | $R |"
+            echo "| Preproducción | $D |"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$B" != "success" ]; then
             echo "**PIPELINE FALLIDO: build falló, pruebas NO ejecutadas.**" >> "$GITHUB_STEP_SUMMARY"
             exit 1
-          elif [ "$T" = "success" ]; then
-            echo "**PIPELINE EXITOSO.**" >> "$GITHUB_STEP_SUMMARY"
-          else
+          elif [ "$T" != "success" ]; then
             echo "**PIPELINE FALLIDO: pruebas fallaron.**" >> "$GITHUB_STEP_SUMMARY"
             exit 1
+          elif [ "$R" = "failure" ] || [ "$R" = "cancelled" ] || [ "$D" = "failure" ] || [ "$D" = "cancelled" ]; then
+            echo "**PIPELINE FALLIDO: liberación o entrega a preproducción falló.**" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          else
+            echo "**PIPELINE EXITOSO.**" >> "$GITHUB_STEP_SUMMARY"
           fi

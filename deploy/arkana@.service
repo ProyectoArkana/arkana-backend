@@ -1,0 +1,15 @@
+# Instalar en /etc/systemd/system/arkana@.service
+# Uso: systemctl enable --now arkana@api-gateway arkana@auth-service
+[Unit]
+Description=Arkana %i (preproduccion)
+After=network.target postgresql.service
+
+[Service]
+User=arkana
+WorkingDirectory=/opt/arkana/current
+EnvironmentFile=/opt/arkana/shared/.env
+ExecStart=/usr/bin/node services/%i/src/index.js
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
