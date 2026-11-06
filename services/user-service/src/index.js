@@ -5,6 +5,7 @@ loadEnv();
 
 const { getMe, getMyHistory } = require('./userController');
 const admin = require('./adminController');
+const { getDashboard } = require('./dashboardController');
 
 const app = express();
 const PORT = process.env.USER_PORT || 3002;
@@ -19,10 +20,14 @@ app.get('/health', (req, res) => res.json({ service: 'user-service', status: 'up
 app.get('/me', requireUser, getMe);
 app.get('/me/history', requireUser, getMyHistory);
 
-// Llega por el gateway como /api/admin/*. Solo rol ADMIN.
-app.get('/admin/users', requireUser, admin.requireAdmin, admin.listUsers);
-app.post('/admin/users', requireUser, admin.requireAdmin, admin.createUser);
-app.get('/admin/users/:id', requireUser, admin.requireAdmin, admin.getUser);
-app.patch('/admin/users/:id/role', requireUser, admin.requireAdmin, admin.setRole);
+// Panel principal (ARK-006): llega por el gateway como /api/dashboard
+app.get('/dashboard', requireUser, getDashboard);
+
+// Administración (ARK-011): llega por el gateway como /api/admin/*. Solo rol ADMIN.
+app.use('/admin', requireUser, admin.requireAdmin);
+app.get('/admin/users', admin.listUsers);
+app.post('/admin/users', admin.createUser);
+app.get('/admin/users/:id', admin.getUser);
+app.patch('/admin/users/:id/role', admin.setRole);
 
 app.listen(PORT, () => console.log(`[user-service] corriendo en el puerto ${PORT}`));

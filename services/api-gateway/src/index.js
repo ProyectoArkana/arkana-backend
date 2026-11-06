@@ -42,10 +42,12 @@ app.use('/api/auth', authLimiter, createProxyMiddleware({ ...http(URLS.auth), pa
 app.use('/api/users', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/users': '' } }));
 app.use('/api/cards', verifyToken, createProxyMiddleware({ ...http(URLS.cards), pathRewrite: { '^/api/cards': '' } }));
 // Mazo activo (ARK-020): lo atiende card-service
-app.use('/api/decks', verifyToken, createProxyMiddleware({
-  target: URLS.cards,
+app.use('/api/decks', verifyToken, createProxyMiddleware({ ...http(URLS.cards), pathRewrite: { '^/api/decks': '/decks' } }));
+// Panel principal (ARK-006): un solo endpoint con colección, mazo y últimos combates (user-service)
+app.use('/api/dashboard', verifyToken, createProxyMiddleware({
+  target: URLS.users,
   changeOrigin: true,
-  pathRewrite: (path) => `/decks${path}`,
+  pathRewrite: (path) => `/dashboard${path}`,
 }));
 // Administración de usuarios y roles (user-service valida en la BD que quien llama sea ADMIN)
 app.use('/api/admin', verifyToken, createProxyMiddleware({ ...http(URLS.users), pathRewrite: { '^/api/admin': '/admin' } }));
